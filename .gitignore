@@ -218,3 +218,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Project data lives on the shared Drive, only the split file is tracked
+data/*
+!data/.gitkeep
+!data/splits.csv
