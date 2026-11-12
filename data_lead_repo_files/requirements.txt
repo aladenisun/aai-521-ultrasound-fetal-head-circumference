@@ -1,0 +1,9 @@
+albumentations>=1.4
+matplotlib
+numpy
+opencv-python-headless
+pandas
+torch
+segmentation-models-pytorch
+jupyter
+flake8
