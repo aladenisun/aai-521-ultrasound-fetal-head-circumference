@@ -1,161 +1,72 @@
-# Fetal Head Circumference from Ultrasound (HC18)
+# Fetal Head Circumference Measurement from Ultrasound (HC18)
 
-Measuring fetal head circumference (HC) from 2D ultrasound images with U-Net
-segmentation. AAI-521 final project, University of San Diego.
+AAI-521 Applied Computer Vision for AI, Final Team Project
+University of San Diego
 
-## Project summary
+## Overview
 
-Head circumference is one of the standard measurements used to track fetal
-growth. A sonographer normally draws an ellipse around the skull by hand. This
-project automates that step:
+Doctors measure fetal head circumference (HC) on ultrasound to track growth and estimate gestational age. Today this is done by hand: a sonographer traces an ellipse around the skull on screen. It takes time and the result varies from person to person.
 
-1. **Segment** the fetal head in the ultrasound image with a U-Net.
-2. **Fit an ellipse** to the predicted head mask.
-3. **Convert** the ellipse circumference from pixels to millimeters using the
-   pixel size of the scan, and compare it with the sonographer's measurement.
+This project automates that measurement. A U-Net segments the fetal head in each ultrasound image, an ellipse is fit to the predicted mask, and the ellipse circumference is converted from pixels to millimeters using each image's pixel size.
 
-Results are reported as the Dice score of the predicted mask and the mean
-absolute difference in millimeters between predicted and true HC.
+## Pipeline
+
+1. **Preprocessing:** convert the hand-drawn outline annotations into filled head masks, then resize and augment the images.
+2. **Segmentation:** train a U-Net from scratch as a baseline, then a U-Net with a pretrained encoder, and compare the two.
+3. **Measurement:** fit an ellipse to each predicted mask, compute its circumference, and convert to mm.
+4. **Evaluation:** Dice score for segmentation quality and mean absolute error (mm) for head circumference.
 
 ## Dataset
 
-[HC18 on Zenodo](https://zenodo.org/records/1327317) (CC BY 4.0), from
-van den Heuvel et al. (2018).
+**HC18 Grand Challenge** (van den Heuvel et al., 2018), available on Zenodo.
 
-| File | Contents |
-|---|---|
-| `training_set.zip` | 999 ultrasound images, each with an `_Annotation.png` outline of the head |
-| `training_set_pixel_size_and_HC.csv` | filename, pixel size (mm), head circumference (mm) |
-| `test_set.zip`, `test_set_pixel_size.csv` | 335 images without outlines (not used for scoring) |
+- 999 labeled 2D ultrasound images with expert ellipse annotations
+- A CSV with each image's pixel size (mm) and the expert head circumference (mm)
+- The official test set has no public labels, so we split the 999 labeled images into train (70%), validation (15%), and test (15%) with a fixed random seed
 
-The official test set has no public outlines, so the train, validation and
-test splits used here are all cut from the 999 labeled images.
+The data is not stored in this repo. Download it from Zenodo into the team's shared Google Drive folder.
 
-### Getting the data
-
-Nothing needs to be downloaded by hand. Running
-`notebooks/01_data_preparation_and_eda.ipynb` downloads the four files from
-Zenodo, checks their MD5 hashes, and unzips them into the data folder.
-
-To do it manually instead, download the four files from the Zenodo page into
-`<data folder>/raw/` and unzip the two archives there.
-
-The data is **not** stored in this repository. On Colab the data folder is the
-team's shared Google Drive folder (`MyDrive/aai-521-hc18` by default, set by
-`DATA_DIR` in the first notebook). Locally it is `data/`, or whatever the
-`HC18_DATA_DIR` environment variable points to.
-
-## Repository structure
+## Repository Structure
 
 ```
-├── README.md
-├── requirements.txt
-├── notebooks/
-│   └── 01_data_preparation_and_eda.ipynb   download, masks, split, EDA
-├── src/
-│   └── dataset.py                          PyTorch Dataset and DataLoaders
-├── data/                                   local data folder (git-ignored)
-│   └── splits.csv                          the shared split (tracked)
-└── app/                                    optional Streamlit demo
+fetal_head_circumference.ipynb   Full project notebook (sections below)
+app/
+  streamlit_app.py               Optional demo: upload an ultrasound, get the outline and HC
+README.md
 ```
 
-Data folder layout after running notebook 01:
+The notebook is organized into sections:
 
-```
-<data folder>/
-├── raw/training_set/     000_HC.png, 000_HC_Annotation.png, ...
-├── masks/                000_HC.png, ...   filled head masks (0 or 255)
-├── figures/              EDA figures for the report
-└── splits.csv            filename, split, pixel_size_mm, true_hc_mm
-```
+1. Setup: package installs and Google Drive mount
+2. Data and EDA: loading, mask creation, splits, exploratory analysis
+3. Modeling: U-Net baseline and pretrained encoder U-Net, training and tuning
+4. Measurement: ellipse fitting, HC in mm, error analysis
+5. Results and Comparison
 
-## How to run
+## How to Run
 
-### On Google Colab
+1. Download HC18 from Zenodo into the shared Google Drive folder.
+2. Open the notebook in Google Colab: **File > Open notebook > GitHub**, then paste this repo's URL.
+3. Switch to a GPU runtime (**Runtime > Change runtime type > GPU**).
+4. Run the Setup section to install packages and mount Google Drive, then run the remaining sections in order.
 
-1. Open the notebook from GitHub in Colab
-   (File > Open notebook > GitHub, paste the repo URL).
-2. If the team folder is shared with you, add a shortcut to it in *My Drive*
-   so it appears under `/content/drive/MyDrive/`. Edit `DATA_DIR` in the Setup
-   cell if the folder name differs.
-3. Runtime > Run all. The notebook mounts Drive and clones this repo so that
-   `src/dataset.py` can be imported.
+## Results
 
-### Locally
+| Model | Dice (test) | HC MAE (mm, test) |
+|---|---|---|
+| U-Net from scratch | TBD | TBD |
+| U-Net with pretrained encoder | TBD | TBD |
 
-```bash
-git clone https://github.com/aladenisun/aai-521-ultrasound-fetal-head-circumference.git
-cd aai-521-ultrasound-fetal-head-circumference
-pip install -r requirements.txt
-jupyter notebook notebooks/
-```
+## Team
 
-### Notebooks
+| Member | Role | Responsibilities |
+|---|---|---|
+| Rajni Massoun | Model Lead | U-Net baseline, pretrained encoder model, tuning, segmentation results |
+| Thiago Alvares | Data Lead | Dataset setup, mask creation, splits, EDA, data loader |
+| Nisun Alade | Measurement Lead | Ellipse fitting, HC in mm, evaluation metrics, error analysis, demo app |
 
-| Notebook | What it does | Needs | Produces |
-|---|---|---|---|
-| `01_data_preparation_and_eda.ipynb` | Downloads HC18, converts outlines to filled masks, makes the split, runs the EDA, checks the data loader | internet access | `splits.csv`, `masks/`, `figures/` |
+## References
 
-Modeling and measurement notebooks will be added to this table as they land.
+Ronneberger, O., Fischer, P., & Brox, T. (2015). U-Net: Convolutional networks for biomedical image segmentation. In *Medical Image Computing and Computer-Assisted Intervention (MICCAI 2015)* (pp. 234–241). Springer.
 
-## The split
-
-- 70% train, 15% validation, 15% test, random seed 42.
-- Split names in `splits.csv` are `train`, `val` and `test`.
-- Images whose filenames share the same leading number (for example
-  `010_HC.png` and `010_2HC.png`) are kept in the same split, so repeat scans
-  of one fetus never sit on both sides of the split. This makes the shares
-  approximate rather than exact.
-- Everyone should read `splits.csv` rather than re-splitting.
-
-## Data at a glance
-
-- 999 labeled images from 806 fetuses; 164 fetuses have more than one image.
-- Split sizes: 700 train, 150 validation, 149 test.
-- 975 images are 800 x 540 pixels and 24 are a few pixels off, all 8-bit
-  grayscale. The loader resizes everything, so no special handling is needed.
-- Pixel size ranges from about 0.05 to 0.39 mm.
-- Head circumference ranges from 44 to 346 mm. About 60% of images fall
-  between 100 and 200 mm, 18% are under 100 mm and 22% are over 200 mm.
-- Only 5 heads are cut off by the image edge. Faint skull edges are mostly
-  found in the smallest heads.
-- Filled masks give a circumference about 0.7 mm larger than the reference
-  value on average, because the mask includes the thickness of the drawn
-  outline.
-
-## Using the data loader
-
-```python
-import sys
-sys.path.insert(0, "src")  # or the path to the cloned repo's src folder
-from dataset import get_dataloaders
-
-loaders = get_dataloaders(DATA_DIR, image_size=256, batch_size=16)
-images, masks = next(iter(loaders["train"]))
-# images: float32 (B, 1, 256, 256) in 0-1
-# masks:  float32 (B, 1, 256, 256) with values 0 or 1
-```
-
-- Augmentation (horizontal flip, rotation up to 15 degrees, brightness and
-  contrast) is applied to the training split only. Flips and rotations are
-  applied to the image and mask together. Turn it off with `augment=False`.
-- `image_size` takes one number or `(height, width)`, for example 384 or 512.
-- `in_channels=3` repeats the grayscale image for RGB pretrained encoders.
-- `return_meta=True` adds the filename, pixel size, true HC and original
-  image size to each item.
-
-**Note for measurement:** resizing to a square changes the head's shape.
-Resize a predicted mask back to the original image size before fitting the
-ellipse and multiplying by `pixel_size_mm`.
-
-## Code style
-
-Python code follows [PEP 8](https://peps.python.org/pep-0008/) and is checked
-with `flake8`.
-
-## Reference
-
-van den Heuvel, T. L. A., de Bruijn, D., de Korte, C. L., & van Ginneken, B.
-(2018). Automated measurement of fetal head circumference using 2D ultrasound
-images. *PLoS ONE, 13*(8), e0200412.
-https://doi.org/10.1371/journal.pone.0200412
+van den Heuvel, T. L. A., de Bruijn, D., de Korte, C. L., & van Ginneken, B. (2018). Automated measurement of fetal head circumference using 2D ultrasound images. *PLOS ONE, 13*(8), e0200412. https://doi.org/10.1371/journal.pone.0200412
