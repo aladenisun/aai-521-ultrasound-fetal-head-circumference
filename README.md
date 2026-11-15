@@ -54,7 +54,7 @@ The notebook is organized into sections:
 
 | Model | Dice (test) | HC MAE (mm, test) |
 |---|---|---|
-| U-Net from scratch | TBD | TBD |
+| U-Net from scratch | 0.974 | 2.32 | | TBD |
 | U-Net with pretrained encoder | TBD | TBD |
 
 ## Team
