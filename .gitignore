@@ -223,3 +223,6 @@ __marimo__/
 data/*
 !data/.gitkeep
 !data/splits.csv
+
+app/models/
+.DS_Store
