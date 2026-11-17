@@ -38,6 +38,11 @@ WEIGHTS_URL = ("https://github.com/aladenisun/aai-521-ultrasound-fetal-head-circ
 PLAIN_THRESHOLD = 0.4
 RESNET_THRESHOLD = 0.5
 
+# a head outline is close to an ellipse. if a mask fills less than this much of
+# its own fitted ellipse, it is probably not the skull
+MIN_HEAD_SHAPE = 0.85
+MIN_AGREE = 0.85   # Dice between the two models' masks
+
 # overestimate in pixels, measured on validation in notebook 04
 PLAIN_OFFSET_PX = 7.19
 RESNET_OFFSET_PX = 3.27
@@ -128,11 +133,11 @@ def load_models():
 
 @st.cache_data
 def load_hc18_info():
-    # file name -> (pixel size, doctors' HC), so HC18 images fill themselves in
+    # file name -> (pixel size, doctors HC, split), so HC18 images fill themselves in
     if not os.path.exists(SPLITS_CSV):
         return {}
     df = pd.read_csv(SPLITS_CSV)
-    return {r.filename: (r.pixel_size_mm, r.true_hc_mm) for r in df.itertuples()}
+    return {r.filename: (r.pixel_size_mm, r.true_hc_mm, r.split) for r in df.itertuples()}
 
 
 # ---- measuring, same as notebook 04 ----
@@ -147,7 +152,14 @@ def predict_mask(model, gray, threshold, channels):
         prob = torch.sigmoid(model(x))[0, 0].numpy()
     # back to the original size before measuring, the square resize stretches the head
     prob = cv2.resize(prob, (w, h), interpolation=cv2.INTER_LINEAR)
-    return (prob >= threshold).astype(np.uint8)
+    mask = (prob >= threshold).astype(np.uint8)
+
+    # keep only the biggest blob so stray bits elsewhere in the scan don't count
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
+    if count <= 1:
+        return mask
+    biggest = 1 + np.argmax(stats[1:, cv2.CC_STAT_AREA])
+    return (labels == biggest).astype(np.uint8)
 
 
 def ellipse_perimeter(a, b):
@@ -171,6 +183,28 @@ def hc_pixels(mask):
 
     _, axes, _ = cv2.fitEllipse(pts)
     return ellipse_perimeter(axes[0] / 2, axes[1] / 2)
+
+
+def head_shape_score(mask):
+    # overlap between the mask and the ellipse fit to it, 1 means a perfect ellipse
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    if not contours:
+        return 0.0
+    biggest = max(contours, key=cv2.contourArea)
+
+    # fit on the points off the image border, same as the measurement
+    pts = biggest.reshape(-1, 2)
+    h, w = mask.shape
+    keep = (pts[:, 0] > 0) & (pts[:, 0] < w - 1) & (pts[:, 1] > 0) & (pts[:, 1] < h - 1)
+    if keep.sum() < 5:
+        return 0.0
+    blob = np.zeros_like(mask)
+    cv2.drawContours(blob, [biggest], -1, 1, thickness=cv2.FILLED)
+    ellipse = np.zeros_like(mask)
+    cv2.ellipse(ellipse, cv2.fitEllipse(pts[keep]), 1, thickness=cv2.FILLED)
+    both = np.logical_and(blob, ellipse).sum()
+    either = np.logical_or(blob, ellipse).sum()
+    return both / either if either else 0.0
 
 
 def hadlock_weeks(hc_mm):
@@ -205,6 +239,8 @@ st.set_page_config(page_title="Fetal Head Circumference", layout="wide")
 st.title("Fetal Head Circumference from Ultrasound")
 st.write("Upload an ultrasound of a fetal head. The app finds the skull, measures the "
          "head circumference and estimates how far along the pregnancy is.")
+st.caption("Use the top-down slice through the head that doctors measure on. "
+           "Before about 12 weeks the skull hasn't formed yet.")
 
 with st.sidebar:
     st.header("How to use")
@@ -261,7 +297,7 @@ with right:
     if known:
         st.caption("Filled in from the HC18 dataset.")
     else:
-        st.caption("Not an HC18 file, so check this matches your scan.")
+        st.warning("Not an HC18 file, so check this matches your scan.")
 
 with st.spinner("Finding the head..."):
     plain_mask = predict_mask(plain_model, gray, PLAIN_THRESHOLD, channels=1)
@@ -270,17 +306,27 @@ with st.spinner("Finding the head..."):
 with left:
     st.image(draw_outlines(gray, plain_mask, resnet_mask), caption=name, width="stretch")
 
-plain_px = hc_pixels(plain_mask)
-resnet_px = hc_pixels(resnet_mask)
-if np.isnan(plain_px) or np.isnan(resnet_px):
+# fix the overestimate in pixels, then convert to mm
+plain_hc = (hc_pixels(plain_mask) - PLAIN_OFFSET_PX) * pixel_mm
+resnet_hc = (hc_pixels(resnet_mask) - RESNET_OFFSET_PX) * pixel_mm
+
+# only trust an outline that is shaped like a head
+plain_ok = head_shape_score(plain_mask) >= MIN_HEAD_SHAPE and not np.isnan(plain_hc)
+resnet_ok = head_shape_score(resnet_mask) >= MIN_HEAD_SHAPE and not np.isnan(resnet_hc)
+
+# both models have to land on the same head, or the number is not worth showing
+both = np.logical_and(plain_mask, resnet_mask).sum()
+total = plain_mask.sum() + resnet_mask.sum()
+agree = 2 * both / total if total else 0.0
+
+if not (plain_ok and resnet_ok and agree >= MIN_AGREE):
     with right:
-        st.error("No head outline found. Make sure it is a fetal head ultrasound "
-                 "in the standard view used to measure HC.")
+        st.error("No measurement for this image. The two models did not find the same "
+                 "head shaped outline, so the result would not be reliable.")
+        st.write("This usually means the image is not the standard view used to measure the head, "
+                 "or it is a very early scan. Before about 12 weeks there is no skull to measure yet.")
     st.stop()
 
-# fix the overestimate in pixels, then convert to mm and average
-plain_hc = (plain_px - PLAIN_OFFSET_PX) * pixel_mm
-resnet_hc = (resnet_px - RESNET_OFFSET_PX) * pixel_mm
 final_hc = (plain_hc + resnet_hc) / 2
 
 with right:
@@ -298,6 +344,10 @@ with right:
     if known:
         doctors_hc = known[1]
         st.metric("Doctors' HC", f"{doctors_hc:.1f} mm")
+        if known[2] != "test":
+            # the models saw this scan while training, so the match will look better than it really is
+            st.caption(f"This scan is from our {'training' if known[2] == 'train' else 'validation'} set, "
+                       "so the models have already seen it. Use a test set scan for a fair check.")
 
         # how far off we are, in mm and in days
         diff = final_hc - doctors_hc
@@ -309,5 +359,8 @@ with right:
         st.write(note + ".")
 
     with st.expander("Each model on its own"):
-        st.write(f"ResNet-34 U-Net: {resnet_hc:.1f} mm")
-        st.write(f"Plain U-Net: {plain_hc:.1f} mm")
+        for label, hc, ok in [("ResNet-34 U-Net", resnet_hc, resnet_ok), ("Plain U-Net", plain_hc, plain_ok)]:
+            if ok:
+                st.write(f"{label}: {hc:.1f} mm")
+            else:
+                st.write(f"{label}: outline not shaped like a head, left out")
