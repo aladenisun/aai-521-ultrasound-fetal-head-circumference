@@ -3,6 +3,8 @@
 AAI-521 Applied Computer Vision for AI, Final Team Project
 University of San Diego
 
+**Live demo:** https://fetal-head-circumference.streamlit.app
+
 ## Overview
 
 Doctors measure fetal head circumference (HC) on ultrasound to track growth and estimate gestational age. Today this is done by hand: a sonographer traces an ellipse around the skull on screen. It takes time and the result varies from person to person.
@@ -38,6 +40,10 @@ src/
   dataset.py                          PyTorch data loader shared by the notebooks
 data/
   splits.csv                          Train, validation, and test split used by every notebook
+app/
+  streamlit_app.py                    Demo app: upload an ultrasound, get the outline, HC, and gestational age
+  requirements.txt                    Packages for the app (used by Streamlit Community Cloud)
+  samples/                            Three test set scans to try the app with
 requirements.txt
 README.md
 ```
@@ -50,6 +56,19 @@ README.md
    - **01:** creates the masks, splits.csv, and EDA figures.
    - **02 and 03:** need a GPU runtime (**Runtime > Change runtime type > T4 GPU**). Each saves its model, predicted masks, and results to Drive.
    - **04:** runs on a regular CPU runtime. It reads the predicted masks from 02 and 03.
+
+## Demo App
+
+The app is live at https://fetal-head-circumference.streamlit.app. Nothing to install: upload an ultrasound or pick one of the sample scans, and it shows the head outline from both models, the head circumference in mm, and the gestational age. For HC18 images it fills in the pixel size on its own and compares the result to the doctors' measurement.
+
+It runs the same steps as notebook 04: both U-Nets predict a mask, an ellipse is fit to each, the overestimate fix is applied in pixels, and the two measurements are averaged. The model weights are too big for the repo, so they are stored in the v1.0 GitHub release and the app downloads them the first time it starts.
+
+To run it on your own computer instead:
+
+```
+pip install -r app/requirements.txt
+streamlit run app/streamlit_app.py
+```
 
 ## Results
 
@@ -78,7 +97,7 @@ For the final measurement:
 |---|---|---|
 | Rajni Massoun | Model Lead | U-Net baseline, pretrained encoder model, tuning, segmentation results |
 | Thiago Alvares | Data Lead | Dataset setup, mask creation, splits, EDA, data loader |
-| Nisun Alade | Measurement Lead | Ellipse fitting, HC in mm, overestimate correction, evaluation metrics, error analysis |
+| Nisun Alade | Measurement Lead | Ellipse fitting, HC in mm, overestimate correction, evaluation metrics, error analysis, demo app |
 
 ## References
 

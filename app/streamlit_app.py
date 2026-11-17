@@ -180,7 +180,7 @@ def hadlock_weeks(hc_mm):
 
 def weeks_and_days(weeks):
     w, d = divmod(round(weeks * 7), 7)
-    return f"{w} weeks {d} days"
+    return f"{w} wk {d} d"
 
 
 def trimester(weeks):
@@ -214,6 +214,7 @@ with st.sidebar:
     st.divider()
     st.caption("Red outline: ResNet-34 U-Net. Blue outline: plain U-Net. "
                "The head circumference is the average of both after the overestimate fix.")
+    st.caption("Sample scans are from the HC18 dataset (van den Heuvel et al., 2018).")
     st.caption("AAI-521 Final Project, University of San Diego")
 
 try:
@@ -243,7 +244,7 @@ elif pick != "none":
     name = pick
     gray = cv2.imread(os.path.join(SAMPLE_DIR, pick), cv2.IMREAD_GRAYSCALE)
 else:
-    st.info("Upload an image to start.")
+    st.info("Upload an image or pick a sample to start." if samples else "Upload an image to start.")
     st.stop()
 
 if gray is None:
@@ -296,11 +297,16 @@ with right:
 
     if known:
         doctors_hc = known[1]
-        st.metric("Doctors' HC", f"{doctors_hc:.1f} mm",
-                  delta=f"{final_hc - doctors_hc:+.2f} mm from ours", delta_color="off")
+        st.metric("Doctors' HC", f"{doctors_hc:.1f} mm")
+
+        # how far off we are, in mm and in days
+        diff = final_hc - doctors_hc
+        side = "over" if diff > 0 else "under"
+        note = f"Ours is {abs(diff):.1f} mm {side} the doctors' measurement"
         if doctors_hc >= 100 and final_hc >= 100:
             days = (hadlock_weeks(final_hc) - hadlock_weeks(doctors_hc)) * 7
-            st.write(f"That is {days:+.1f} days of gestational age.")
+            note += f", about {abs(days):.1f} days of gestational age"
+        st.write(note + ".")
 
     with st.expander("Each model on its own"):
         st.write(f"ResNet-34 U-Net: {resnet_hc:.1f} mm")
