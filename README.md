@@ -55,17 +55,22 @@ README.md
 
 All numbers are on the same 149 held-out test images.
 
-| Model | Dice (test) | HC MAE (mm, test) |
-|---|---|---|
-| U-Net from scratch | 0.974 | 2.32 |
-| U-Net with pretrained encoder | 0.977 | 2.05 |
-| Average of both, overestimate corrected | n/a | 1.94 |
+| Model | Dice (test) | HC MAE before fix (mm) | HC MAE after fix (mm) |
+|---|---|---|---|
+| U-Net from scratch | 0.974 | 2.32 | 2.06 |
+| U-Net with pretrained encoder | 0.977 | 2.05 | 1.97 |
+| Average of both | n/a | n/a | 1.94 |
+
+The fix removes the small overestimate the models learned from the filled training masks. It is picked on the validation images only. Averaging both models adds a small gain on top (1.94 vs 1.97 mm).
 
 For the final measurement:
 
+- HC MAE of 1.94 mm, 95% bootstrap confidence interval 1.66 to 2.26 mm
+- Lower than the gap between a second person and the expert sonographer in every trimester, as reported in the HC18 paper (second trimester: 1.76 mm vs 3.7 mm)
+- The overestimate fix is the one gain that holds up across 5,000 bootstrap draws; the pretrained encoder and the averaging each add a little, but not reliably on 149 test images
 - Bias of +0.21 mm, with 95% limits of agreement from -5.0 to +5.5 mm
 - 95% of test images within 5 mm of the doctors, 62% within 2 mm
-- Off by 1.38 days of gestational age on average (heads of 100 mm and up)
+- Off by 1.38 days of gestational age on average, on the 121 test heads of 100 mm and up (the age formula is not meant for smaller, earlier heads)
 
 ## Team
 
@@ -78,6 +83,8 @@ For the final measurement:
 ## References
 
 Bland, J. M., & Altman, D. G. (1986). Statistical methods for assessing agreement between two methods of clinical measurement. *The Lancet, 327*(8476), 307–310. https://doi.org/10.1016/S0140-6736(86)90837-8
+
+Efron, B., & Tibshirani, R. J. (1993). *An introduction to the bootstrap*. Chapman & Hall/CRC. https://doi.org/10.1201/9780429246593
 
 Hadlock, F. P., Deter, R. L., Harrist, R. B., & Park, S. K. (1984). Estimating fetal age: Computer-assisted analysis of multiple fetal growth parameters. *Radiology, 152*(2), 497–501. https://doi.org/10.1148/radiology.152.2.6739822
 
