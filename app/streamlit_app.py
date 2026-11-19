@@ -357,6 +357,7 @@ st.write("Upload a fetal head ultrasound. The app segments the skull, measures t
          "circumference, estimates gestational age and places the result on a fetal growth standard.")
 st.caption("Use the standard transthalamic plane used for HC measurement. Scans before about 12 weeks "
            "are not supported, since the skull has not yet ossified.")
+st.caption("Research demonstration only. Not for clinical use.")
 
 with st.sidebar:
     st.header("How to use")
@@ -382,7 +383,7 @@ with st.sidebar:
         st.markdown(
             "**Quality checks.** A result is reported only when each mask overlaps its own fitted "
             "ellipse by at least 0.85 and the two masks agree with a Dice of at least 0.85.\n\n"
-            "**Expected error.** Test set error stays close to constant in pixels (19.3 px under "
+            "**Typical error.** Test set error stays close to constant in pixels (19.3 px under "
             "100 mm, 13.0 px from 100 to 200 mm, 15.6 px over 200 mm), so the range is scaled by "
             "each scan's own pixel size.")
 
@@ -496,7 +497,7 @@ with right:
 
     st.subheader("Results")
     st.metric("Head circumference", f"{final_hc:.1f} mm")
-    st.caption(f"Expected error for this scan: ± {error_mm:.1f} mm, based on the test set error in "
+    st.caption(f"Typical error for this scan: ± {error_mm:.1f} mm, based on the average test set error in "
                "pixels at this pixel size and head size.")
 
     est_ga = None
@@ -505,7 +506,7 @@ with right:
         low, high = hadlock_weeks(final_hc - error_mm), hadlock_weeks(final_hc + error_mm)
         days = (high - low) / 2 * 7
         st.metric("Estimated gestational age (Hadlock)", weeks_and_days(est_ga))
-        st.caption(f"{trimester(est_ga)} trimester. Expected error: ± {days:.1f} days.")
+        st.caption(f"{trimester(est_ga)} trimester. Typical error: ± {days:.1f} days.")
     else:
         st.write("No age estimate. Hadlock's formula applies to heads of 100 mm and above.")
 
@@ -518,9 +519,12 @@ with right:
             note += f" ({day_diff:+.1f} days)"
         st.write(note + ".")
         if known[2] != "test":
-            split = "training" if known[2] == "train" else "validation"
-            st.caption(f"This scan is from the {split} set, so the models have seen it. "
-                       "Use a test set scan for an unbiased comparison.")
+            if known[2] == "train":
+                st.caption("This scan is from the training set, so the models learned from it. "
+                           "Use a test set scan for an unbiased comparison.")
+            else:
+                st.caption("This scan is from the validation set, which was used to choose the "
+                           "threshold and bias correction. Use a test set scan for an unbiased comparison.")
 
     with st.expander("Individual model measurements"):
         st.write(f"ResNet-34 U-Net: {resnet_hc:.1f} mm")
